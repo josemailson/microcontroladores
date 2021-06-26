@@ -1,0 +1,154 @@
+/* Created on 14 de Dezembro de 2020, 19:48
+*///Clock externo de 8MHz.
+#include <P18F4550.h>
+#include <timers.h>
+#include <delays.h>
+
+// #include <adc.h>
+#pragma config FOSC = HS
+//#pragma config CPUDIV = OSC1_PLL2
+#pragma config WDT = OFF //Desabilita o Watchdog Timer (WDT).
+#pragma config PWRT = ON //Habilita o Power-up Timer (PWRT).
+#pragma config BOR = ON //Brown-out Reset (BOR) habilitado soment no hardware.
+#pragma config BORV = 1 //Voltagem do BOR é 4,33V.
+#pragma config PBADEN = OFF //RB0,1,2,3 e 4 configurado como I/Odigital.
+#pragma config LVP = OFF //Desabilita o Low Voltage Program.
+
+#define display PORTD
+
+#define dig_uni PORTBbits.RB0
+#define dig_dez PORTBbits.RB1
+#define dig_cen PORTBbits.RB2
+#define dig_mil PORTBbits.RB3
+
+
+
+int conta = 0;//conta interrupções
+
+//Variaveis para armazenar cada valor
+char digitoUnidade;
+char digitoDezena;
+char digitoCentena;
+char digitoMilhar;
+
+/* Aqui definir as variáveis */
+
+// gfedcba
+unsigned char tabela[10] = {0b00111111,
+                            0b00000110,
+                            0b01011011,
+                            0b01001111,
+                            0b01100110,
+                            0b01101101,
+                            0b01111100,
+                            0b00000111,
+                            0b01111111,
+                            0b01100111
+};
+
+#pragma code int_pr = 0x08//Vetor int. alta prioridade
+#pragma interrupt trata_TIMER1
+
+void trata_TIMER1(void){
+    TMR1L = 0XB0;
+    TMR1H = 0X3C;
+
+    PIR1bits.TMR1IF = 0;
+    conta++;   
+}
+
+void main(void){
+     
+    TRISB = 0b00000000;
+    dig_uni = 1;
+    dig_dez = 1;
+    dig_cen = 1;
+    dig_mil = 1;
+    TRISD = 0b00000000;
+    PORTD = 0;
+
+    T1CONbits.RD16 = 0; // Leitura e escrita em 2 registradores
+    T1CONbits.T1RUN = 0; // Clock secundário não utilizado
+    T1CONbits.T1CKPS1 = 1; // pre-escala de 1:4.
+    T1CONbits.T1CKPS0 = 0; //
+    T1CONbits.T1SYNC = 0; //
+    T1CONbits.T1OSCEN = 0; //
+    T1CONbits.TMR1CS = 0; //Clock principal selecionado
+    T1CONbits.TMR1ON = 1; // TMR1 CONTANDO.
+    
+    //writeTimer1(0x3CB0);
+    TMR1L = 0xB0;
+    TMR1H = 0x3C;
+    
+    // WriteTimer1(0x3CB0); // 65535-50000= 15536
+    PIR1bits.TMR1IF = 0; //Zera flag
+    PIE1bits.TMR1IE = 1; // Habilita interrupção timer1
+
+    INTCONbits.GIEH = 1;
+    //INTCONbits.GIEL = 1;
+    INTCONbits.PEIE = 1;
+
+    while(1){
+        
+        digitoUnidade = conta %10;
+        digitoDezena = (conta / 10) %10;
+        
+        //Desativando as saidas de PORTB
+        dig_uni = 1;
+        dig_dez = 1;
+        dig_cen = 1;
+        dig_mil = 1;
+        
+        
+        display = tabela[digitoUnidade];
+        //Ativando a saida da Unidade
+        dig_uni = 0;
+        Delay10KTCYx(1);
+        
+        //Desativando as saidas de PORTB
+        dig_uni = 1;
+        dig_dez = 1;
+        dig_cen = 1;
+        dig_mil = 1;
+        
+        display = tabela[digitoDezena];
+        //Ativando a saida da Dezena
+        dig_dez = 0;
+        Delay10KTCYx(1); 
+        
+        //Desativando as saidas de PORTB
+        dig_uni = 1;
+        dig_dez = 1;
+        dig_cen = 1;
+        dig_mil = 1;
+       
+        display = tabela[digitoCentena];
+        //Ativando a saida da Centena
+        dig_cen = 0;
+        Delay10KTCYx(1); 
+            
+        //Desativando as saidas de PORTB
+        dig_uni = 1;
+        dig_dez = 1;
+        dig_cen = 1;
+        dig_mil = 1;
+
+        display = tabela[digitoMilhar];
+        //Ativando a saida da Milhar
+        dig_mil = 0;
+        Delay10KTCYx(1);
+        
+        if(digitoUnidade == 9 & digitoDezena == 5){
+            conta = 0;
+            digitoCentena++;
+            if(digitoCentena > 9){
+                digitoMilhar++;
+                digitoCentena = 0;
+            }
+            if(digitoCentena > 3 & digitoMilhar > 2){
+                digitoCentena = 0;
+                digitoMilhar = 0;
+            }
+        }       
+    }
+}
